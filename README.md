@@ -8,7 +8,7 @@ Current options :
   - Putting infected people in quarantine zone.
 
 
-This is a Jupyter code that will not work if you try to run it in a .py script, because the "%matplotlib notebook" IPython Magic Command 
-is used. In this case, use the "matplotlib.animation.FuncAnimation" function.
+This is a Jupyter code : it may not work if you try to run it in a .py script, because the "%matplotlib notebook" IPython Magic Command 
+is used. In this case, maybe try to use the "matplotlib.animation.FuncAnimation" function.
 
 Documentation is in French.
