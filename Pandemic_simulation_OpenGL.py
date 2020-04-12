@@ -1,6 +1,15 @@
+"""
+	It requires:
+		1. pyqtgraph
+			- conda install pyqtgraph
+		2. pyopenGL
+			- conda install -c anaconda pyopengl
+"""
+
 import numpy as np
 import numpy.random as npr
 from pyqtgraph.Qt import QtGui, QtCore
+import pyqtgraph.opengl as gl
 import pyqtgraph as pg
 import sys
 import time
@@ -368,78 +377,94 @@ class World:
 			self.p_colors_q += c.p_colors_q
 			
 
+#Code pour convertir une couleur hex en couleur RGBA (seul type reconnu par GLScatterPlotItem)
+def hex_to_rgba(color, alpha=1):
+	h = color.lstrip('#')
+	return [int(h[i:i+2], 16) / 255 for i in (0, 2, 4)] + [alpha]
+
+#Visualiser l'évolution de la pandémie
 class Visualizer:
 	def __init__(self, world):
-		#Lancer l'application
-		#Soit : self.app = QtGui.QApplication([]) 
-		#		On voit aussi souvent QtGui.QApplication(sys.argv) -> sys.argv renvoie la liste des arguments de la ligne de commande passés à un script Python. argv[0] est le nom du script.
-		#Soit : self.app = pg.mkQApp() -> exécute QtGui.QApplication([]) uniquement si cela n'a pas déjà été fait
-		
-		#Plusieurs façon d'ouvrir une fenêtre : toutes ces classes exécutent pg.mkQApp() au début et self.show() à la fin de leur self.__init__
-		#										-> Il faudra donc le faire manuellement si on souhaite plutôt appeler les classes dont elles héritent !
-		#self.win = pg.GraphicsWindow() -> hérite de GraphicsLayoutWidget
-		#self.win = pg.TabWindow() -> hérite de QtGui.QMainWindow
-		#self.win = pg.PlotWindow() -> hérite de PlotWidget
-		#self.win = pg.ImageWindow() -> hérite de ImageView : Widget utilisé pour l'affichage et l'analyse d'image
-		#....et bien d'autres....
-
-		#pg.setConfigOption('background', '#d3d3d3')
-		#Seule la classe GraphicsLayoutWidget supporte la méthode addPlot, donc c'est celle qu'on utilisera (en particulier sa classe fille GraphicsWindow)
-		self.win = pg.GraphicsWindow(title="Pandemic Simulation")
-		#Affichage en plein écran
+		self.app = pg.mkQApp()
+		self.win = gl.GLViewWidget()
+		self.win.opts['distance'] = 20
+		self.win.setWindowTitle('Pandemic Simulation')
+		#self.win.setGeometry(0, 110, 1920, 1080)
 		self.win.showMaximized()
-		pg.setConfigOptions(antialias=True)
+		self.win.show()
 
 		self.world = world
 		self.traces = {}
 		
-		#Graphe de l'état de l'épidémie (Est-il possible de ploter les 4 courbes en même temps ?)
-		self.graph = self.win.addPlot(title="Evolution of the Pandemic", row=0, col=0, colspan=self.world.nb_cols)
-		self.graph.addLegend()
-		self.traces["I"] = self.graph.plot(self.world.times, self.world.l_I, pen=self.world.colors_graph[0], name=self.world.labels[0])
-		self.traces["S"] = self.graph.plot(self.world.times, self.world.l_S, pen=self.world.colors_graph[1], name=self.world.labels[1])
-		self.traces["R"] = self.graph.plot(self.world.times, self.world.l_R, pen=self.world.colors_graph[2], name=self.world.labels[2])
-		self.traces["D"] = self.graph.plot(self.world.times, self.world.l_D, pen=self.world.colors_graph[3], name=self.world.labels[3])
+		#On veut de l'affichage 2D, donc on fixera y = 0
+		self.y = 0
 
-		#Scatter de la population de chaque pays
+
+		#Graphe de l'état de l'épidémie (TO IMPROVE)
+		# size = len(self.world.l_I)
+		# coord = np.array([self.world.times, [self.y]*size, self.world.l_I]).T
+		# self.traces["I"] = gl.GLLinePlotItem(pos=coord, antialias=True)
+		# self.win.addItem(self.traces["I"])
+
+		# size = len(self.world.l_S)
+		# coord = np.array([self.world.times, [self.y]*size, self.world.l_S]).T
+		# self.traces["S"] = gl.GLLinePlotItem(pos=coord, antialias=True)
+		# self.win.addItem(self.traces["S"])
+
+		# size = len(self.world.l_R)
+		# coord = np.array([self.world.times, [self.y]*size, self.world.l_R]).T
+		# self.traces["R"] = gl.GLLinePlotItem(pos=coord, antialias=True)
+		# self.win.addItem(self.traces["R"])
+
+		# size = len(self.world.l_D)
+		# coord = np.array([self.world.times, [self.y]*size, self.world.l_D]).T
+		# self.traces["D"] = gl.GLLinePlotItem(pos=coord, antialias=True)
+		# self.win.addItem(self.traces["D"])
+
+		#Scatter de la population de chaque pays (TO IMPROVE)
 		self.pop = {}
 		for idx, c in self.world.countries.items():
 			pos_x = idx % self.world.nb_cols
 			pos_y = idx // self.world.nb_cols
-			self.pop[idx] = self.win.addPlot(title="Country {}".format(idx+1), row=pos_y+1, col=pos_x)
-			self.pop[idx].setXRange(self.world.x1, self.world.x2)
-			self.pop[idx].setYRange(self.world.y1, self.world.y2)
-			self.pop[idx].disableAutoRange()
-			self.pop[idx].hideAxis('bottom')
-			self.pop[idx].hideAxis('left')
-			colors = [pg.mkColor(color) for color in c.p_colors]
-			self.traces[idx] = self.pop[idx].plot(c.x_coord, c.y_coord, symbol='o', symbolBrush=colors, symbolPen='b', pen=None)
+			spread = 0.5
+			size = len(c.x_coord)
+			coord = np.array([np.array(c.x_coord)+pos_x*(self.world.x2-self.world.x1+spread), [self.y]*size, np.array(c.y_coord)+pos_y*(self.world.y2-self.world.y1+spread)]).T
+			colors = np.array([hex_to_rgba(color) for color in c.p_colors])
+			self.traces[idx] = gl.GLScatterPlotItem(pos=coord, size=self.world.p_size, color=colors)
+			self.win.addItem(self.traces[idx])
 
-		#Scatter de la population en quarantaine
-		self.pop_q = self.win.addPlot(title="Quarantine Zone", row=self.world.nb_rows, col=0, colspan=self.world.nb_cols)
-		self.pop_q.setXRange(self.world.x1_q, self.world.x2_q)
-		self.pop_q.setYRange(self.world.y1_q, self.world.y2_q)
-		self.pop_q.disableAutoRange()
-		self.pop_q.hideAxis('bottom')
-		self.pop_q.hideAxis('left')
-		colors_q = [pg.mkColor(color) for color in self.world.p_colors_q]
-		self.traces["quarantine"] = self.pop_q.plot(self.world.x_coord_q, self.world.y_coord_q, symbol='o', symbolBrush=colors_q, pen=None)
+		#Scatter de la population en quarantaine (TO DO)
+		# self.pop_q = self.win.addPlot(title="Quarantine Zone", row=self.world.nb_rows, col=0, colspan=self.world.nb_cols)
+		# colors_q = [pg.mkColor(color) for color in self.world.p_colors_q]
+		# self.traces["quarantine"] = self.pop_q.plot(self.world.x_coord_q, self.world.y_coord_q, symbol='o', symbolBrush=colors_q, pen=None)
 
 	def display(self):
-		#Graphe de l'état de l'épidémie à un instant donné
-		self.traces["I"].setData(self.world.times, self.world.l_I)
-		self.traces["S"].setData(self.world.times, self.world.l_S)
-		self.traces["R"].setData(self.world.times, self.world.l_R)
-		self.traces["D"].setData(self.world.times, self.world.l_D)
+		#Graphe de l'état de l'épidémie à un instant donné (TO IMPROVE)
+		# size = len(self.world.l_I)
+		# coord = np.array([self.world.times, [self.y]*size, self.world.l_I]).T
+		# self.traces["I"].setData(pos=coord)
+		# size = len(self.world.l_S)
+		# coord = np.array([self.world.times, [self.y]*size, self.world.l_S]).T
+		# self.traces["S"].setData(pos=coord)
+		# size = len(self.world.l_R)
+		# coord = np.array([self.world.times, [self.y]*size, self.world.l_R]).T
+		# self.traces["R"].setData(pos=coord)
+		# size = len(self.world.l_D)
+		# coord = np.array([self.world.times, [self.y]*size, self.world.l_D]).T
+		# self.traces["D"].setData(pos=coord)
 
-		#Affichage de la population de chaque pays à un instant donné
+		# #Affichage de la population de chaque pays à un instant donné (TO IMPROVE)
 		for idx, c in self.world.countries.items():
-			colors = [pg.mkColor(color) for color in c.p_colors]
-			self.traces[idx].setData(c.x_coord, c.y_coord, symbolBrush=colors)
+			pos_x = idx % self.world.nb_cols
+			pos_y = idx // self.world.nb_cols
+			spread = 1
+			size = len(c.x_coord)
+			coord = np.array([np.array(c.x_coord)+pos_x*(self.world.x2-self.world.x1+spread), [self.y]*size, np.array(c.y_coord)+pos_y*(self.world.y2-self.world.y1+spread)]).T
+			colors = np.array([hex_to_rgba(color) for color in c.p_colors])
+			self.traces[idx].setData(pos=coord, color=colors)
 
-		#Affichage de la population en quarantaine à un instant donné
-		colors_q = [pg.mkColor(color) for color in self.world.p_colors_q]
-		self.traces["quarantine"].setData(self.world.x_coord_q, self.world.y_coord_q, symbolBrush=colors_q)
+		#Affichage de la population en quarantaine à un instant donné (TO DO)
+
 
 	# def update(self):
 	# 	beg = time.time()
@@ -457,9 +482,9 @@ class Visualizer:
 	def update(self):
 		self.world.update(quarantine=False)
 		self.display()
-		if not self.world.l_I[-1]:
-			self.timer.stop()
-			self.win.close()
+		# if not self.world.l_I[-1]:
+		# 	self.timer.stop()
+		# 	self.win.close()
 
 	def animation(self):
 		self.timer = QtCore.QTimer()
@@ -475,7 +500,7 @@ class Visualizer:
 
 #Lancement du code
 if __name__ == '__main__':
-	w = World(move=0.01)
+	w = World(move=0.01, p_size=3)
 	for i in range(8):
 		w.add_country(nb_S=500)
 	v = Visualizer(w)
