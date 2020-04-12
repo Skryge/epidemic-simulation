@@ -29,11 +29,14 @@ Improvable part : This library is much faster than Matplotlib (more dedicated to
 INCREASES LINEARLY WITH THE NUMBER OF PARTICLES. So, the program is fluid for a reasonable number of particles
 (8 x 50 for example) but is worse than the Optimized Matplotlib script when trying to reach the goal.
 
-I expect that using OpenGL still imply a linear increase, but I hope the slope is smaller because OpenGL should use
-use a part of the GPU (unlike PyQtGraph used alone).
-
   - Method : PyQtGraph + OpenGL 
-Improvable part :.....
+Improvable part : It is much faster (x10 the non-improvable part when executing "the goal") because OpenGL takes
+avantage of a part of the GPU (unlike PyQtGraph used alone). It is still not enough fluid to me but problem comes from 
+the non-improvable part, so it seems there is nothing to do more.
+Problem -> it is difficult to display a graph with title, legend, add annotations because of 3D; find a good scale,
+moving the camera, etc.
+
+Next step : Vispy or ...
 
 -----
 
