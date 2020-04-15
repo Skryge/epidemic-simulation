@@ -36,7 +36,11 @@ the non-improvable part, so it seems there is nothing to do more.
 Problem -> it is difficult to display a graph with title, legend, add annotations because of 3D; find a good scale,
 moving the camera, etc.
 
-Next step : Vispy or ...
+  - Method : Vispy
+Improvable part : Same bugs as on Bokeh and slower than it by using vispy.plot.
+
+I will try to improve results by using vispy.app.Canvas class instead (take advantage of the GPU through the use of 
+shaders, etc...
 
 -----
 
