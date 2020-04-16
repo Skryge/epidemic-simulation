@@ -1,4 +1,3 @@
-
 from Pandemic import *
 from vispy import app, gloo
 import numpy as np
@@ -9,10 +8,18 @@ def hex_to_rgb(color):
     h = color.lstrip('#')
     return [int(h[i:i+2], 16) / 255 for i in (0, 2, 4)]
 
+#Profiling decorator
+def profiling(function):
+    def new_function(*args, **kwargs):
+        beg = time.time()
+        ret = function(*args, **kwargs)
+        end = time.time()
+        print('Executing time of {} function : {} seconds'.format(function.__name__, end-beg))
+        return ret
+    return new_function
+
 
 VERT_SHADER = """
-#version 120
-
 // y coordinate of the position.
 attribute vec2 a_position;
 
@@ -26,22 +33,20 @@ void main() {
     gl_Position = vec4(a_position, 0.0, 1.0);
 
     // Taille des points
-    gl_PointSize = 10;
+    gl_PointSize = 5;
 
-    // Color
+    // Couleur
     v_color = vec4(a_color, 1.);
 }
 """
 
 FRAG_SHADER = """
-#version 120
-
 varying vec4 v_color;
 
 void main() {
     gl_FragColor = v_color;
 
-    // Draw circle points
+    // Pour dessiner des disques (et non des carres)
     vec2 coord = gl_PointCoord - vec2(0.5);  //from [0,1] to [-0.5,0.5]
     if(length(coord) > 0.5)                  //outside of circle radius?
         discard;
@@ -55,11 +60,23 @@ class Visualizer(app.Canvas):
         self.world = world
         self.program = gloo.Program(VERT_SHADER, FRAG_SHADER)
 
-        #Une country pour l'instant
-        c = world.countries[0]
+        #Distance max entre les coordonnées max et coordonnées min
+        self.dist_x = self.world.x2-self.world.x1
+        self.dist_y = self.world.y2-self.world.y1
 
-        self.program['a_position'] = np.c_[c.x_coord, c.y_coord].astype(np.float32)
-        self.program['a_color'] = np.array([hex_to_rgb(color) for color in c.p_colors], dtype=np.float32)
+        #On définit un delta permettant de séparer les scatter plots entre eux (et aussi de les séparer du graphe d'évolution)
+        self.delta_x = self.dist_x / 16
+        self.delta_y = self.dist_y / 16
+        #On définit une marge permettant de voir les particules entièrement, même lorsqu'elles sont aux bords
+        self.margin_x = self.dist_x / 64
+        self.margin_y = self.dist_y / 64
+        #Les coordonnées du canvas vont de -1 à 1 en x et en y (la longueur de chaque axe est donc de 1-(-1) = 2)
+        #On normalise les coordonnées à partir des informations précédentes -> (0, max_x_coord) et (0, max_y_coord) :
+        self.max_x_coord = (2 - 2*self.margin_x - (self.world.nb_cols-1)*self.delta_x) / self.world.nb_cols
+        self.max_y_coord = (2 - 2*self.margin_y - (self.world.nb_rows-1)*self.delta_y) / self.world.nb_rows
+
+        self.send_to_gpu()
+        
         gloo.set_viewport(0, 0, *self.physical_size)
         self._timer = app.Timer(0, connect=self.on_timer, start=True)
         gloo.set_state(clear_color='white', blend=True, blend_func=('src_alpha', 'one_minus_src_alpha'))
@@ -68,22 +85,47 @@ class Visualizer(app.Canvas):
     def on_resize(self, event):
         gloo.set_viewport(0, 0, *event.physical_size)
 
+    #@profiling
+    def send_to_gpu(self, already_called=False):
+        #Graphe de l'état de l'épidémie à un instant donné (TO DO)
+
+        #Population de chaque pays à un instant donné
+        for idx, c in self.world.countries.items():
+            #On calcule les pos_x et pos_y de chaque pays sur le canvas (grâce à leur idx)
+            pos_x = idx % self.world.nb_cols
+            pos_y = idx // self.world.nb_cols
+            #Plutôt de haut en bas
+            pos_y = self.world.nb_rows-2-1-pos_y
+            #On obtient les nouvelles coordonnées à partir de toutes les informations précédentes
+            c.new_coord = [[-1 + self.margin_x + pos_x*(self.max_x_coord+self.delta_x) + self.max_x_coord * (x_coord - self.world.x1) / self.dist_x, 
+                            -1 + self.margin_y + (pos_y+1) * (self.max_y_coord+self.delta_y) + self.max_y_coord * (y_coord - self.world.y1) / self.dist_y] for x_coord, y_coord in zip(c.x_coord, c.y_coord)]
+        data = np.vstack([c.new_coord for c in self.world.countries.values()]).astype(np.float32)
+        colors = np.array([hex_to_rgb(color) for c in self.world.countries.values() for color in c.p_colors], dtype=np.float32)
+
+        #Population en quarantaine à un instant donné (TO DO)
+
+        #On envoie les nouvelles données au GPU (voir combien de gloo.Program on créera)
+        if already_called:
+            self.program['a_position'].set_data(data)
+            self.program['a_color'].set_data(colors)
+        else:
+            self.program['a_position'] = data
+            self.program['a_color'] = colors
+
     def on_timer(self, event):
         self.world.update()
-        c = self.world.countries[0]
-
-        self.program['a_position'].set_data(np.c_[c.x_coord, c.y_coord].astype(np.float32))
-        self.program['a_color'].set_data(np.array([hex_to_rgb(color) for color in c.p_colors], dtype=np.float32))
+        self.send_to_gpu(already_called=True)
+        #Display changes
         self.update()
 
     def on_draw(self, event):
         gloo.clear()
         self.program.draw('points')
 
+
 if __name__ == '__main__':
-    w = World(move=0.01)
+    w = World(move=0.006)
     for i in range(8):
         w.add_country(nb_S=500)
     v = Visualizer(w)
     app.run()
-
