@@ -1,7 +1,7 @@
 from Pandemic import *
 from vispy import app, gloo
-import numpy as np
-import math
+from pyqtgraph.Qt import QtGui
+import pyqtgraph as pg
 
 #Code pour convertir une couleur hex en couleur RGB
 def hex_to_rgb(color):
@@ -53,17 +53,28 @@ void main() {
 }
 """
 
-
+#Our Visualizer inherits app.Canvas but also manages another window for displaying the Pandemic evolution graph
+#-> It allows for updating both windows easily, i.e. with only one timer (check if there is another way)
 class Visualizer(app.Canvas):
     def __init__(self, world):
-        app.Canvas.__init__(self, title='Pandemic simulation', keys='interactive')
+        app.Canvas.__init__(self, title='Pandemic simulation', keys='interactive', position=(-7,0), size=(960,1080))
         self.world = world
-        self.program = gloo.Program(VERT_SHADER, FRAG_SHADER)
+        
+        #GRAPH PART (PyQtGraph)
+        pg.setConfigOption('background', 'w')
+        self.win = pg.GraphicsWindow(title='Evolution of the Pandemic', size=(960,1080))
+        self.graph = self.win.addPlot(title='Evolution of the Pandemic', row=0, col=0)
+        #self.win.showMaximized()
+        self.graph.addLegend()
+        self.traces = {}
 
+        #SCATTER PLOT PART (VisPy)
+        self.program = gloo.Program(VERT_SHADER, FRAG_SHADER)
+        gloo.set_viewport(0, 0, *self.physical_size)
+        gloo.set_state(clear_color='white', blend=True)
         #Distance max entre les coordonnées max et coordonnées min
         self.dist_x = self.world.x2-self.world.x1
         self.dist_y = self.world.y2-self.world.y1
-
         #On définit un delta permettant de séparer les scatter plots entre eux (et aussi de les séparer du graphe d'évolution)
         self.delta_x = self.dist_x / 16
         self.delta_y = self.dist_y / 16
@@ -75,21 +86,20 @@ class Visualizer(app.Canvas):
         self.max_x_coord = (2 - 2*self.margin_x - (self.world.nb_cols-1)*self.delta_x) / self.world.nb_cols
         self.max_y_coord = (2 - 2*self.margin_y - (self.world.nb_rows-1)*self.delta_y) / self.world.nb_rows
 
-        self.send_to_gpu()
-        
-        gloo.set_viewport(0, 0, *self.physical_size)
-        self._timer = app.Timer(0, connect=self.on_timer, start=True)
-        gloo.set_state(clear_color='white', blend=True, blend_func=('src_alpha', 'one_minus_src_alpha'))
+        #COMMON PART (except self.show)
+        #Initialize plots
+        self.update_plots()
+        #Show scatter plot canvas (graph windows is already showed through pg.GraphicsWindow function)
         self.show()
+        #Set Timer (note that this one comes from VisPy library)
+        self.timer = app.Timer(0, connect=self.on_timer, start=True)
 
     def on_resize(self, event):
         gloo.set_viewport(0, 0, *event.physical_size)
 
     #@profiling
-    def send_to_gpu(self, already_called=False):
-        #Graphe de l'état de l'épidémie à un instant donné (TO DO)
-
-        #Population de chaque pays à un instant donné
+    def update_plots(self, already_called=False):
+        #Converting scatter plot data for sending to gpu properly
         for idx, c in self.world.countries.items():
             #On calcule les pos_x et pos_y de chaque pays sur le canvas (grâce à leur idx)
             pos_x = idx % self.world.nb_cols
@@ -101,20 +111,33 @@ class Visualizer(app.Canvas):
                             -1 + self.margin_y + (pos_y+1) * (self.max_y_coord+self.delta_y) + self.max_y_coord * (y_coord - self.world.y1) / self.dist_y] for x_coord, y_coord in zip(c.x_coord, c.y_coord)]
         data = np.vstack([c.new_coord for c in self.world.countries.values()]).astype(np.float32)
         colors = np.array([hex_to_rgb(color) for c in self.world.countries.values() for color in c.p_colors], dtype=np.float32)
-
+        
         #Population en quarantaine à un instant donné (TO DO)
 
-        #On envoie les nouvelles données au GPU (voir combien de gloo.Program on créera)
+        #Initialize or update plots
         if already_called:
+            self.traces["I"].setData(self.world.times, self.world.l_I)
+            self.traces["S"].setData(self.world.times, self.world.l_S)
+            self.traces["R"].setData(self.world.times, self.world.l_R)
+            self.traces["D"].setData(self.world.times, self.world.l_D)
+
             self.program['a_position'].set_data(data)
             self.program['a_color'].set_data(colors)
         else:
+            self.traces["I"] = self.graph.plot(self.world.times, self.world.l_I, pen=self.world.colors_graph[0], name=self.world.labels[0])
+            self.traces["S"] = self.graph.plot(self.world.times, self.world.l_S, pen=self.world.colors_graph[1], name=self.world.labels[1])
+            self.traces["R"] = self.graph.plot(self.world.times, self.world.l_R, pen=self.world.colors_graph[2], name=self.world.labels[2])
+            self.traces["D"] = self.graph.plot(self.world.times, self.world.l_D, pen=self.world.colors_graph[3], name=self.world.labels[3])
+
             self.program['a_position'] = data
             self.program['a_color'] = colors
+        
+        #Note : Le temps d'envoi des données au GPU + le temps d'affichage à l'écran (self.update et self.on_draw) est négligeable !
+        #Le seul moyen d'avoir une animation plus fluide est donc d'optimiser la façon de convertir les données. (et bien sûr aussi toute la partie Pandemic.py)
 
     def on_timer(self, event):
         self.world.update()
-        self.send_to_gpu(already_called=True)
+        self.update_plots(already_called=True)
         #Display changes
         self.update()
 
