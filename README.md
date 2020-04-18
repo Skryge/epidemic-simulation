@@ -40,12 +40,15 @@ the non-improvable part, so it seems there is nothing to do more.
 Problem -> it is difficult to display a graph with title, legend, add annotations because of 3D; find a good scale,
 moving the camera, etc.
 
-  - Method : Vispy
-
+  - Method : Vispy (vispy.plot)
+  
 Improvable part : Same bugs as on Bokeh and slower than it by using vispy.plot.
 
-I will try to improve results by using vispy.app.Canvas class instead (take advantage of the GPU through the use of 
-shaders, etc...
+  - Method : Vispy (vispy.canvas + vispy.gloo)
+  
+Improvable part : Really fast (similar to OpenGL) but rendering text with it is tricky.
+
+Conclusion : I combined vispy.canvas/vispy.gloo (for the scatter plots) and pyqtgraph (for the pandemic evolution graph)
 
 -----
 
