@@ -90,9 +90,21 @@ class Particle:
 				self.coord = np.array([(country.x2_q-country.x1_q) / 2.0, (country.y2_q-country.y1_q) / 2.0])
 				self.pos_canvas = [-1, -1]
 			else:
-				self.update_pos(country)
-				self.update_grid_pos(country)
-				country.grid["[{},{}]".format(self.grid_pos_x, self.grid_pos_y)].append(self)
+				#Ici, on suppose que country.days_R > country.incubation_time, sinon il faudrait aussi mettre cette condition dans le if au-dessus
+				if self.time >= country.days_R:
+					country.I.remove(self)
+					if npr.rand() < country.proba_D:
+						country.D.append(self)
+						self.set_state("D")
+					else:
+						country.R.append(self)
+						self.set_state("R")
+						self.time = 0
+					self.update_pos(country)
+				else:
+					self.update_pos(country)
+					self.update_grid_pos(country)
+					country.grid["[{},{}]".format(self.grid_pos_x, self.grid_pos_y)].append(self)
 		else:
 			if self.time >= country.days_R:
 				country.I.remove(self)
@@ -160,7 +172,7 @@ class Country:
 		self.time = 0
 		
 		#Probabilités et mesures remarquables
-		self.proba_I = 0.3
+		self.proba_I = 0.4
 		self.proba_sympt = 0.8
 		self.proba_D = 0.03
 		self.safe_zone = 0.0015
