@@ -14,11 +14,11 @@ Comparison betweeen the "Pandemic simulation" scripts
 
 Goal : Display 8 x 500 particles seamlessly
 
-Non-improvable part (Pandemic.py scrip) : time increases linearly with the number of particles.
+Non-improvable part (Pandemic.py scrip) : Time increases linearly with the number of particles.
 
   - Method : Basic Matplotlib (Jupyter)
 
-Improvable part : time increases linearly with the number of subplots (~0.1sec / subplot), and the order of magnitude is
+Improvable part : Time increases linearly with the number of subplots (~0.1sec / subplot), and the order of magnitude is
 such that the number of particles does not really matter. So, the goal is to decrease the number of subplots.
 
   - Method : Optimized Matplotlib (Jupyter) -> 3 subplots (maybe we can do better with the use of blit)
@@ -52,7 +52,7 @@ Conclusion : I combined vispy.canvas/vispy.gloo (for the scatter plots) and pyqt
 
 -----
 
-For Jupyter scripts : they may not work if you try to run it in a .py script because the "%matplotlib notebook" IPython Magic Command 
+For Jupyter scripts : They may not work if you try to run it in a .py script because the "%matplotlib notebook" IPython Magic Command 
 is used. In this case, maybe try to use the "matplotlib.animation.FuncAnimation" function.
 
 Most comments are in French.
