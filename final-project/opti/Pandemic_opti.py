@@ -73,6 +73,7 @@ class Particle:
 					country.S.remove(self)
 					country.new_I_particles.append(self)
 					self.set_state("I")
+					self.symptomatic = True if npr.rand() < 0.8 else False
 					break
 		self.update_pos(country)
 		self.update_grid_pos(country)
@@ -82,7 +83,7 @@ class Particle:
 		self.time += country.time_period
 		country.grid["[{},{}]".format(self.grid_pos_x, self.grid_pos_y)].remove(self)
 		if country.quarantine:
-			if self.time >= country.incubation_time:
+			if self.symptomatic and self.time >= country.incubation_time:
 				self.quarantine = True
 				country.I.remove(self)
 				country.I_q.append(self)
@@ -159,7 +160,7 @@ class Country:
 		self.time = 0
 		
 		#Probabilités et mesures remarquables
-		self.proba_I = 0.2
+		self.proba_I = 0.3
 		self.proba_D = 0.03
 		self.safe_zone = 0.0015
 		self.incubation_time = 6
@@ -298,7 +299,7 @@ class World:
 		self.update_lists(c)
 		self.find_grid_dim()
 	
-	"A FAIRE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	#TO DO
 	def travels(self, frequency=0.5):
 		pass
 	

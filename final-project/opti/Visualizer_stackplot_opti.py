@@ -42,7 +42,7 @@ void main() {
 
 
     // Taille des points
-    gl_PointSize = 5;
+    gl_PointSize = 4;
 
     // Couleur
     v_color = vec4(a_color, 1.);
@@ -191,7 +191,8 @@ class Visualizer(app.Canvas):
 
 if __name__ == '__main__':
     w = World(move=0.01, time_period=1/300)
-    for i in range(3):
-        w.add_country(nb_S=500)
+    w.add_country(nb_S=500)
+    w.add_country(nb_S=400)
+    w.add_country(nb_S=300)
     v = Visualizer(w)
     app.run()
