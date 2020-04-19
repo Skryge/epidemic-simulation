@@ -1,6 +1,5 @@
 from Pandemic_opti import *
 from vispy import app, gloo
-from pyqtgraph.Qt import QtGui
 import pyqtgraph as pg
 
 #Profiling decorator
@@ -75,8 +74,12 @@ class Visualizer(app.Canvas):
         pg.setConfigOption('background', 'k')
         self.win = pg.GraphicsWindow(title='Evolution of the Pandemic', size=(960, 1010))
         self.win.move(-8,0)
-        self.graph = self.win.addPlot(title='Evolution of the Pandemic', row=0, col=0)
-        self.graph.addLegend()
+        self.graph = self.win.addPlot(row=0, col=0)
+        self.graph.setTitle('Evolution of the Pandemic', size='17px')
+        labelStyle = {'color': '#7e7e7e', 'font-size': '15px'}
+        self.graph.setLabel('left', 'Number of people', **labelStyle)
+        self.graph.setLabel('bottom', 'Time (days)', **labelStyle)
+        self.graph.addLegend(size=(100,150))
         self.traces = {}
 
         #SCATTER PLOT PART (VisPy)
@@ -88,12 +91,12 @@ class Visualizer(app.Canvas):
         #Initialize particle positions on canvas
         for c in self.world.countries.values():
             for p in c.particles.values():
-                p.pos = [-1, -1] if p.quarantine else [c.idx % self.world.nb_cols, self.world.nb_rows-1-(c.idx // self.world.nb_cols)]
+                p.pos_canvas = [-1, -1] if p.quarantine else [c.idx % self.world.nb_cols, self.world.nb_rows-1-(c.idx // self.world.nb_cols)]
 
         #Prepare data for sending to GPU (through self.program)
         self.world.coord = np.array([p.coord for c in self.world.countries.values() for p in c.particles.values()], dtype=np.float32)
         self.world.p_colors = np.array([p.color for c in self.world.countries.values() for p in c.particles.values()], dtype=np.float32)
-        self.world.pos = np.array([p.pos for c in self.world.countries.values() for p in c.particles.values()], dtype=np.float32) / 255
+        self.world.pos_canvas = np.array([p.pos_canvas for c in self.world.countries.values() for p in c.particles.values()], dtype=np.float32) / 255
         #Distance max entre les coordonnées max et coordonnées min
         self.dist_x = self.world.x2-self.world.x1
         self.dist_y = self.world.y2-self.world.y1
@@ -142,7 +145,7 @@ class Visualizer(app.Canvas):
 
             self.program['a_coord'].set_data(self.world.coord)
             self.program['a_color'].set_data(self.world.p_colors)
-            self.program['a_pos'].set_data(self.world.pos)
+            self.program['a_pos'].set_data(self.world.pos_canvas)
         else:
             self.y_0 = [0]
             self.traces["0"] = self.graph.plot(self.world.times, self.y_0)
@@ -163,7 +166,7 @@ class Visualizer(app.Canvas):
             self.program['a_max_y_coord'] = self.max_y_coord
             self.program['a_coord'] = self.world.coord
             self.program['a_color'] = self.world.p_colors
-            self.program['a_pos'] = self.world.pos
+            self.program['a_pos'] = self.world.pos_canvas
 
         fills = [pg.FillBetweenItem(self.traces['0'], self.traces['I'], brush=self.world.colors['I']),
                 pg.FillBetweenItem(self.traces['I'], self.traces['S'], brush=self.world.colors['S']),
@@ -176,18 +179,10 @@ class Visualizer(app.Canvas):
         #Le seul moyen d'avoir une animation plus fluide est donc d'optimiser la façon de convertir les données. (et bien sûr aussi toute la partie Pandemic.py)
 
     def on_timer(self, event):
-        beg = time.time()
-        if self.world.time < 7:
-            self.world.update()
-        else:
-            self.world.update(quarantine=True)
-        interm = time.time()
+        self.world.update(quarantine=True, nb_tests=0)
         self.update_plots(already_called=True)
-        end = time.time()
-        print('time', interm-beg, '+', end-interm, '=', end-beg)
         #Display changes
         self.update()
-        print('final :', time.time()-end, 'sec')
 
     def on_draw(self, event):
         gloo.clear()
@@ -195,8 +190,8 @@ class Visualizer(app.Canvas):
 
 
 if __name__ == '__main__':
-    w = World(move=0.01)
-    for i in range(8):
+    w = World(move=0.01, time_period=1/300)
+    for i in range(3):
         w.add_country(nb_S=500)
     v = Visualizer(w)
     app.run()

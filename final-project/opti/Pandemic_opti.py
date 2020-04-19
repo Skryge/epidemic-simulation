@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.random as npr
+import random
 import time
 
 #Code pour convertir une couleur hex en couleur RGB
@@ -28,118 +29,118 @@ class Particle:
 		self.state = state
 		self.color = self.colors[state]
 	
-	def update_grid_pos(self, world):
-		self.grid_pos_x = int((self.coord[0] - world.x1) // world.x_lenght)
-		self.grid_pos_y = int((self.coord[1] - world.y1) // world.y_lenght)
+	def update_grid_pos(self, country):
+		self.grid_pos_x = int((self.coord[0] - country.x1) // country.x_lenght)
+		self.grid_pos_y = int((self.coord[1] - country.y1) // country.y_lenght)
 		
 	#Update de la position de la particule
-	def update_pos(self, world):
+	def update_pos(self, country):
 #         Trajectoire aléatoire de longueur self.move
 #         v_x = npr.uniform(-self.move,self.move)
 #         v_y_abs = np.sqrt(self.move**2 - v_x**2)
 #         v_y = -v_y_abs if npr.randint(2) == 0 else v_y_abs
 #         self.direction = np.array([v_x,v_y])
 		coord_temp = self.coord + self.direction
-		if coord_temp[0] < world.x1 or coord_temp[0] >= world.x2:
+		if coord_temp[0] < country.x1 or coord_temp[0] >= country.x2:
 			self.direction[0] *= -1
-		if coord_temp[1] < world.y1 or coord_temp[1] >= world.y2:
+		if coord_temp[1] < country.y1 or coord_temp[1] >= country.y2:
 			self.direction[1] *= -1
 		self.coord += self.direction
 	
-	def update_pos_q(self, world):
+	def update_pos_q(self, country):
 		coord_temp = self.coord + self.direction
-		if coord_temp[0] < world.x1_q or coord_temp[0] >= world.x2_q:
+		if coord_temp[0] < country.x1_q or coord_temp[0] >= country.x2_q:
 			self.direction[0] *= -1
-		if coord_temp[1] < world.y1_q or coord_temp[1] >= world.y2_q:
+		if coord_temp[1] < country.y1_q or coord_temp[1] >= country.y2_q:
 			self.direction[1] *= -1
 		self.coord += self.direction
 	
 	#Chaque cas susceptible a une proba d'infection pour chaque cas infecté avec qui il est en contact "rapproché"
-	def update_S(self, world):
+	def update_S(self, country):
 		#On parcourt les rectangles "les plus proches" en premier, pour gagner en temps d'exécution moyen
-		voisinage = (world.grid["[{},{}]".format(self.grid_pos_x, self.grid_pos_y)]
-					+ world.grid["[{},{}]".format(self.grid_pos_x - 1, self.grid_pos_y)]
-					+ world.grid["[{},{}]".format(self.grid_pos_x + 1, self.grid_pos_y)]
-					+ world.grid["[{},{}]".format(self.grid_pos_x, self.grid_pos_y - 1)]
-					+ world.grid["[{},{}]".format(self.grid_pos_x, self.grid_pos_y + 1)]
-					+ world.grid["[{},{}]".format(self.grid_pos_x - 1, self.grid_pos_y - 1)]
-					+ world.grid["[{},{}]".format(self.grid_pos_x + 1, self.grid_pos_y - 1)]
-					+ world.grid["[{},{}]".format(self.grid_pos_x - 1, self.grid_pos_y + 1)]
-					+ world.grid["[{},{}]".format(self.grid_pos_x + 1, self.grid_pos_y + 1)])
+		voisinage = (country.grid["[{},{}]".format(self.grid_pos_x, self.grid_pos_y)]
+					+ country.grid["[{},{}]".format(self.grid_pos_x - 1, self.grid_pos_y)]
+					+ country.grid["[{},{}]".format(self.grid_pos_x + 1, self.grid_pos_y)]
+					+ country.grid["[{},{}]".format(self.grid_pos_x, self.grid_pos_y - 1)]
+					+ country.grid["[{},{}]".format(self.grid_pos_x, self.grid_pos_y + 1)]
+					+ country.grid["[{},{}]".format(self.grid_pos_x - 1, self.grid_pos_y - 1)]
+					+ country.grid["[{},{}]".format(self.grid_pos_x + 1, self.grid_pos_y - 1)]
+					+ country.grid["[{},{}]".format(self.grid_pos_x - 1, self.grid_pos_y + 1)]
+					+ country.grid["[{},{}]".format(self.grid_pos_x + 1, self.grid_pos_y + 1)])
 		for p_I in voisinage:
-			if np.sqrt(((self.coord - p_I.coord)**2).sum()) < world.safe_zone:
-				if npr.rand() < world.proba_I:
-					world.S.remove(self)
-					world.new_I_particles.append(self)
+			if np.sqrt(((self.coord - p_I.coord)**2).sum()) < country.safe_zone:
+				if npr.rand() < country.proba_I:
+					country.S.remove(self)
+					country.new_I_particles.append(self)
 					self.set_state("I")
 					break
-		self.update_pos(world)
-		self.update_grid_pos(world)
+		self.update_pos(country)
+		self.update_grid_pos(country)
 			
 	#Chaque cas infecté finit par guérir ou mourir après une certaine période
-	def update_I(self, world):
-		self.time += world.time_period
-		world.grid["[{},{}]".format(self.grid_pos_x, self.grid_pos_y)].remove(self)
-		if world.quarantine:
-			if self.time >= world.incubation_time:
+	def update_I(self, country):
+		self.time += country.time_period
+		country.grid["[{},{}]".format(self.grid_pos_x, self.grid_pos_y)].remove(self)
+		if country.quarantine:
+			if self.time >= country.incubation_time:
 				self.quarantine = True
-				world.I.remove(self)
-				world.I_q.append(self)
-				self.coord = np.array([(world.x2_q-world.x1_q) / 2.0, (world.y2_q-world.y1_q) / 2.0])
-				self.pos = [-1, -1]
+				country.I.remove(self)
+				country.I_q.append(self)
+				self.coord = np.array([(country.x2_q-country.x1_q) / 2.0, (country.y2_q-country.y1_q) / 2.0])
+				self.pos_canvas = [-1, -1]
 			else:
-				self.update_pos(world)
-				self.update_grid_pos(world)
-				world.grid["[{},{}]".format(self.grid_pos_x, self.grid_pos_y)].append(self)
+				self.update_pos(country)
+				self.update_grid_pos(country)
+				country.grid["[{},{}]".format(self.grid_pos_x, self.grid_pos_y)].append(self)
 		else:
-			if self.time >= world.days_R:
-				world.I.remove(self)
-				if npr.rand() < world.proba_D:
-					world.D.append(self)
+			if self.time >= country.days_R:
+				country.I.remove(self)
+				if npr.rand() < country.proba_D:
+					country.D.append(self)
 					self.set_state("D")
 				else:
-					world.R.append(self)
+					country.R.append(self)
 					self.set_state("R")
 					self.time = 0
-				self.update_pos(world)
+				self.update_pos(country)
 			else:
-				self.update_pos(world)
-				self.update_grid_pos(world)
-				world.grid["[{},{}]".format(self.grid_pos_x, self.grid_pos_y)].append(self)
+				self.update_pos(country)
+				self.update_grid_pos(country)
+				country.grid["[{},{}]".format(self.grid_pos_x, self.grid_pos_y)].append(self)
 
-	def update_I_q(self, world):
-		self.time += world.time_period
-		if self.time >= world.days_R:
-			world.I_q.remove(self)
-			if npr.rand() < world.proba_D:
-				world.D_q.append(self)
+	def update_I_q(self, country):
+		self.time += country.time_period
+		if self.time >= country.days_R:
+			country.I_q.remove(self)
+			if npr.rand() < country.proba_D:
+				country.D_q.append(self)
 				self.set_state("D")
 			else:
-				world.R_q.append(self)
+				country.R_q.append(self)
 				self.set_state("R")
 				self.time = 0
-		self.update_pos_q(world)
+		self.update_pos_q(country)
 	
 	#Chaque cas guéri a une infime proba de redevenir un cas susceptible au bout d'une certaine période
-	def update_R(self, world):              
-		# self.time += world.time_period
+	def update_R(self, country):              
+		# self.time += country.time_period
 		# if self.time == 7:
 		# 	if npr.rand() < 0.00001:
-		# 		world.R.remove(self)
-		# 		world.S.append(self)
+		# 		country.R.remove(self)
+		# 		country.S.append(self)
 		# 		self.set_state("S")
 		# 		self.time = 0
-		self.update_pos(world)
+		self.update_pos(country)
 	
-	def update_R_q(self, world):
-		# self.time += world.time_period
+	def update_R_q(self, country):
+		# self.time += country.time_period
 		# if self.time == 7:
 		# 	if npr.rand() < 0.00001:
-		# 		world.R_q.remove(self)
-		# 		world.S_q.append(self)
+		# 		country.R_q.remove(self)
+		# 		country.S_q.append(self)
 		# 		self.set_state("S")
 		# 		self.time = 0
-		self.update_pos_q(world)
+		self.update_pos_q(country)
 
 
 class Country:
@@ -160,9 +161,9 @@ class Country:
 		#Probabilités et mesures remarquables
 		self.proba_I = 0.2
 		self.proba_D = 0.03
-		self.safe_zone = 0.01
-		self.incubation_time = 2
-		self.days_R = 7
+		self.safe_zone = 0.0015
+		self.incubation_time = 6
+		self.days_R = 10
 		self.move = move
 		self.time_period = time_period
 		
@@ -263,7 +264,7 @@ class World:
 		self.res = [self.l_I, self.l_S, self.l_R, self.l_D]
 		
 		#Listes des coordonnées des particules, de leur couleur, et de leur position sur le canvas (pour la classe Visualizer)
-		self.coord, self.p_colors, self.pos  = [], [], []
+		self.coord, self.p_colors, self.pos_canvas  = [], [], []
 		
 		#Coordonnées de la zone de promenade de chaque pays et de la zone quarantaine
 		self.x1, self.x2, self.y1, self.y2 = 0, 1, 0, 1
@@ -300,14 +301,24 @@ class World:
 	"A FAIRE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 	def travels(self, frequency=0.5):
 		pass
-		
-	def update(self, quarantine=False):
-		
-		#Update du temps
+	
+	def random_tests(self, sample):
+		for p,c in sample:
+			if p.state == 'I':
+				p.quarantine = True
+				c.I.remove(p)
+				c.I_q.append(p)
+				p.coord = np.array([(self.x2_q-self.x1_q) / 4, 3 * (self.y2_q-self.y1_q) / 4])
+				p.pos_canvas = [-1, -1]
+				#Green color for better visualization
+				p.color = hex_to_rgb('#51ff0d')
+
+	def update(self, quarantine=False, nb_tests=0):
+		#Update time
 		self.time += self.time_period
 		self.times.append(self.time)
 		
-		#Update du système de quarantaine
+		#Update quarantine system
 		if not self.quarantine and quarantine:
 			self.quarantine = True
 			self.q_info += [[self.time]*2,[0,self.N],"black"]
@@ -315,19 +326,28 @@ class World:
 			self.quarantine = False
 			self.q_info += [[self.time]*2,[0,self.N],"grey"]
 		
-		#Update au sein de chaque pays
+		#Update for each country
 		self.l_I.append(0)
 		self.l_S.append(0)
 		self.l_R.append(0)
 		self.l_D.append(0)
-
-		self.x_coord_q, self.y_coord_q, self.p_colors_q  = [], [], []
 		
 		for c in self.countries.values():
 			c.update(quarantine)
 			self.update_lists(c)
 
+		#Government does random tests on population. Infected people go to quarantine zone
+		if nb_tests and abs(self.time-round(self.time)) < 1e-9:
+			people_not_q = []
+			for c in self.countries.values():
+				people_not_q += [(p, c) for p in c.S + c.I + c.R]
+			try:
+				sample = random.sample(people_not_q, nb_tests)
+				self.random_tests(sample)
+			except ValueError:
+				self.random_tests(people_not_q)
+
 		#Update des coordonnées des particules, de leur couleur et de leur position sur le canvas
 		self.coord = np.array([p.coord for c in self.countries.values() for p in c.particles.values()], dtype=np.float32)
 		self.p_colors = np.array([p.color for c in self.countries.values() for p in c.particles.values()], dtype=np.float32) / 255
-		self.pos = np.array([p.pos for c in self.countries.values() for p in c.particles.values()], dtype=np.float32)
+		self.pos_canvas = np.array([p.pos_canvas for c in self.countries.values() for p in c.particles.values()], dtype=np.float32)
