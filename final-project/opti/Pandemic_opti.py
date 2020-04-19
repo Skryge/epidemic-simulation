@@ -73,7 +73,7 @@ class Particle:
 					country.S.remove(self)
 					country.new_I_particles.append(self)
 					self.set_state("I")
-					self.symptomatic = True if npr.rand() < 0.8 else False
+					self.symptomatic = True if npr.rand() < country.proba_sympt else False
 					break
 		self.update_pos(country)
 		self.update_grid_pos(country)
@@ -161,6 +161,7 @@ class Country:
 		
 		#Probabilités et mesures remarquables
 		self.proba_I = 0.3
+		self.proba_sympt = 0.8
 		self.proba_D = 0.03
 		self.safe_zone = 0.0015
 		self.incubation_time = 6
@@ -197,6 +198,7 @@ class Country:
 			self.S.append(p)
 			p.update_grid_pos(self)
 		elif p.state == "I":
+			p.symptomatic = True if npr.rand() < self.proba_sympt else False
 			self.I.append(p)
 			p.update_grid_pos(self)
 			self.grid["[{},{}]".format(p.grid_pos_x, p.grid_pos_y)].append(p)
