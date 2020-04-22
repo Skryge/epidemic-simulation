@@ -81,6 +81,9 @@ class Visualizer(app.Canvas):
         self.graph.setLabel('bottom', 'Time (days)', **labelStyle)
         self.graph.addLegend(size=(100,150))
         self.traces = {}
+        self.keys = ['I', 'S', 'R', 'D']
+        self.data = [self.world.l_I, self.world.l_S, self.world.l_R, self.world.l_D]
+        
 
         #SCATTER PLOT PART (VisPy)
         self.program = gloo.Program(VERT_SHADER, FRAG_SHADER)
@@ -124,8 +127,6 @@ class Visualizer(app.Canvas):
 
     #@profiling
     def update_plots(self, already_called=False):
-        #Clear graph before redrawing it
-        self.graph.clear()
         #Change values for building a stackplot
         nb_I = self.world.l_I[-1]
         nb_S = self.world.l_S[-1]
@@ -136,24 +137,19 @@ class Visualizer(app.Canvas):
         
         #Initialize or update plots
         if already_called:
-            self.y_0.append(0)
-            self.traces["0"].setData(self.world.times, self.y_0)
-            self.traces["I"].setData(self.world.times, self.world.l_I)
-            self.traces["S"].setData(self.world.times, self.world.l_S)
-            self.traces["R"].setData(self.world.times, self.world.l_R)
-            self.traces["D"].setData(self.world.times, self.world.l_D)
+            for i, row in enumerate(self.data):
+                key = self.keys[i]
+                self.traces[key].setData(self.world.times, row)
 
             self.program['a_coord'].set_data(self.world.coord)
             self.program['a_color'].set_data(self.world.p_colors)
             self.program['a_pos'].set_data(self.world.pos_canvas)
         else:
-            self.y_0 = [0]
-            self.traces["0"] = self.graph.plot(self.world.times, self.y_0)
-            self.traces["I"] = self.graph.plot(self.world.times, self.world.l_I, pen=self.world.colors['I'], name=self.world.labels['I'])
-            self.traces["S"] = self.graph.plot(self.world.times, self.world.l_S, pen=self.world.colors['S'], name=self.world.labels['S'])
-            self.traces["R"] = self.graph.plot(self.world.times, self.world.l_R, pen=self.world.colors['R'], name=self.world.labels['R'])
-            self.traces["D"] = self.graph.plot(self.world.times, self.world.l_D, pen=self.world.colors['D'], name=self.world.labels['D'])
-
+            for i, row in enumerate(self.data):
+                key = self.keys[i]
+                self.traces[key] = self.graph.plot(self.world.times, row, fillLevel=0, fillBrush=self.world.colors[key], pen=self.world.colors[key], name=self.world.labels[key])
+                self.traces[key].setZValue(len(self.keys)-i)
+            
             self.program['a_world_x'] = self.world.x1
             self.program['a_world_y'] = self.world.y1
             self.program['a_dist_x'] = self.dist_x
@@ -168,13 +164,6 @@ class Visualizer(app.Canvas):
             self.program['a_color'] = self.world.p_colors
             self.program['a_pos'] = self.world.pos_canvas
 
-        fills = [pg.FillBetweenItem(self.traces['0'], self.traces['I'], brush=self.world.colors['I']),
-                pg.FillBetweenItem(self.traces['I'], self.traces['S'], brush=self.world.colors['S']),
-                pg.FillBetweenItem(self.traces['S'], self.traces['R'], brush=self.world.colors['R']),
-                pg.FillBetweenItem(self.traces['R'], self.traces['D'], brush=self.world.colors['D'])]
-        for f in fills:
-            self.graph.addItem(f)
-        
         #Note : Le temps d'envoi des données au GPU + le temps d'affichage à l'écran (self.update et self.on_draw) est négligeable !
         #Le seul moyen d'avoir une animation plus fluide est donc d'optimiser la façon de convertir les données. (et bien sûr aussi toute la partie Pandemic.py)
 
